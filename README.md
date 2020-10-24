@@ -5,7 +5,7 @@
 ...but in a place different from `/usr/local` - I do prefer something else, `/opt/homebrew` in this branch.
 
 ```bash
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/cmarquardt/homebrew-install/feature/install-elsewhere/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/cmarquardt/homebrew-install/master/install.sh)"
 ```
 
 More installation information and options at https://docs.brew.sh/Installation.html.
@@ -17,7 +17,7 @@ Install Homebrew on Linux and Windows 10 Subsystem for Linux: https://docs.brew.
 ## Uninstall Homebrew
 
 ```bash
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/cmarquardt/homebrew-install/feature/install-elsewhere/uninstall)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/cmarquardt/homebrew-install/master/uninstall.sh)"
 ```
 
-Download the uninstall script and run `./uninstall --help` to view more uninstall options.
+Download the uninstall script and run `/bin/bash uninstall.sh --help` to view more uninstall options.
