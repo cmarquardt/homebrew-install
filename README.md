@@ -1,6 +1,6 @@
 # Homebrew (un)installer
 
-## Install Homebrew
+## Install Homebrew (on macOS or Linux)
 
 ...but in a place different from `/usr/local` - I do prefer something else, `/opt/homebrew` in this branch.
 
@@ -8,11 +8,9 @@
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/cmarquardt/homebrew-install/master/install.sh)"
 ```
 
-More installation information and options at https://docs.brew.sh/Installation.html.
+More installation information and options: https://docs.brew.sh/Installation.
 
-### Linux and Windows 10 Subsystem for Linux
-
-Install Homebrew on Linux and Windows 10 Subsystem for Linux: https://docs.brew.sh/Linuxbrew.
+If running Linux or WSL, [there are some pre-requisite packages to install](https://docs.brew.sh/Homebrew-on-Linux#requirements).
 
 ## Uninstall Homebrew
 
