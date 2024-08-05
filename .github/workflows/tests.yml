@@ -1,55 +1,122 @@
-name: GitHub Actions CI
+name: CI
+
 on:
   push:
-    branches: master
+    branches:
+      - master
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   tests:
     strategy:
       matrix:
         os:
-        - macOS-latest
-        - ubuntu-latest
-    runs-on: ${{matrix.os}}
+          - macOS-latest
+          - ubuntu-latest
+          - windows-latest
+        include:
+          - os: macOS-latest
+            shell: bash
+          - os: ubuntu-latest
+            shell: bash
+          - os: windows-latest
+            shell: wsl -- dos2unix <"$(wslpath '{0}')" | bash --noprofile --norc -euo pipefail
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
-    - name: Set up Git repository
-      uses: actions/checkout@main
+      - name: Set up Git repository
+        uses: actions/checkout@v4
 
-    - name: Cleanup macOS
-      if: runner.os == 'macOS'
-      run: |
-        sudo rm -rf /Applications/Xcode.app \
-                    /Library/Developer/CommandLineTools
-        sudo xcode-select --reset
+      - name: Cleanup macOS
+        if: runner.os == 'macOS'
+        run: |
+          sudo rm -rf /Applications/Xcode.app \
+                      /Library/Developer/CommandLineTools
+          sudo xcode-select --reset
 
-    - name: Set up Homebrew PATH
-      run: |
-        if [ "$RUNNER_OS" = "macOS" ]; then
-          echo "/usr/local/bin:/usr/bin:/bin" >> ${GITHUB_PATH}
-        else
-          echo "/home/linuxbrew/.linuxbrew/bin:/usr/bin:/bin" >> ${GITHUB_PATH}
-        fi
+      - name: Set up WSL
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          wsl --update
+          wsl --version
+          wsl --set-default-version 2
+          # `wsl --install Ubuntu-22.04 --no-launch` has been having issues in CI since 2024-06-14
+          Invoke-WebRequest https://github.com/microsoft/WSL/raw/master/distributions/DistributionInfo.json |
+            Select-Object -ExpandProperty Content |
+            ConvertFrom-JSON |
+            Select-Object -ExpandProperty Distributions |
+            Where-Object Name -EQ "Ubuntu-22.04" |
+            Select-Object -ExpandProperty Amd64PackageUrl |
+            % { Invoke-WebRequest $_ -OutFile Ubuntu2204.appx }
+          Add-AppxPackage Ubuntu2204.appx
+          ubuntu2204 install --root
+          wsl --set-default Ubuntu-22.04
+          wsl --list --verbose
+          wsl --exec apt-get update
+          wsl --exec apt-get install -y --no-install-recommends build-essential dos2unix
+          wsl --exec /usr/sbin/useradd --create-home runner
+          wsl -- --% echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner
+          ubuntu2204 config --default-user runner
+          echo "WSLENV=CI:GITHUB_ACTIONS:RUNNER_OS:GITHUB_PATH/p" >> $env:GITHUB_ENV # allow some basic envs to be passed in
 
-    - name: Test uninstalling GitHub Actions Homebrew
-      run: |
-        if which brew &>/dev/null; then
-          bash uninstall.sh -d >/dev/null
-          bash uninstall.sh -f >/dev/null
-        fi
+      - name: Check Bash 3.x syntax
+        if: runner.os == 'macOS'
+        run: |
+          /bin/bash -u -n install.sh
+          /bin/bash -u -O extglob -n uninstall.sh
 
-    - name: Test install.sh
-      run: |
-        bash install.sh
-        brew install ack
-        bash uninstall.sh -f >/dev/null
-        bash install.sh
+      - name: Set up Homebrew PATH
+        run: |
+          if [[ "${RUNNER_OS}" = "macOS" ]]
+          then
+            echo "/usr/local/bin:/usr/bin:/bin" >> "${GITHUB_PATH}"
+          elif [[ "${RUNNER_OS}" = "Windows" ]]
+          then
+            echo "$(wslpath -w /home/linuxbrew/.linuxbrew/bin)" >> "${GITHUB_PATH}"
+          else
+            echo "/home/linuxbrew/.linuxbrew/bin:/usr/bin:/bin" >> "${GITHUB_PATH}"
+          fi
 
-    - name: Install Shellcheck
-      run: brew install shellcheck
+      - name: Uninstall GitHub Actions Homebrew
+        run: |
+          if which brew &>/dev/null
+          then
+            /bin/bash uninstall.sh -n >/dev/null
+            /bin/bash uninstall.sh -f >/dev/null
+          fi
 
-    - run: shellcheck *.sh
+      - run: /bin/bash -c "$(cat install.sh)"
 
-    - name: Test uninstalling newly installed Homebrew
-      run: |
-        bash uninstall.sh -d >/dev/null
-        bash uninstall.sh -f >/dev/null
+      - run: brew config
+
+      - run: brew install ack
+
+      - run: /bin/bash uninstall.sh -f >/dev/null
+
+      - run: /bin/bash -c "$(cat install.sh)"
+
+      - name: Uninstall and reinstall with sudo NOPASSWD
+        if: runner.os == 'Linux'
+        run: |
+          echo "${USER} ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/${USER}"
+          /bin/bash uninstall.sh -f >/dev/null
+          /bin/bash -c "$(cat install.sh)"
+
+      - name: Check code styles
+        run: |
+          brew install shellcheck shfmt diffutils
+          brew style *.sh
+
+      - run: /bin/bash uninstall.sh -n >/dev/null
+
+      - run: /bin/bash uninstall.sh -f >/dev/null
